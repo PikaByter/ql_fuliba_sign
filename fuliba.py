@@ -1,5 +1,9 @@
-# -*- coding:utf-8 -*-
-
+# !/usr/bin/env python3
+# -*- coding: utf-8 -*-
+'''
+new Env('fuliba签到');
+0 3 * * * fuliba.py
+'''
 import requests
 import re
 import yaml
