@@ -15,7 +15,7 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 NEED_TO_UPDATE_URL_ERROR = "访问登录页失败"
-HEADERS = {
+headers = {
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3',
     'Accept-Encoding': 'gzip, deflate',
     'Accept-Language': 'zh-CN,zh;q=0.9',
@@ -23,6 +23,7 @@ HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 }
 CONFIG_PATH = 'fuliba.yaml'
+
 
 def check_and_prepare_config_file() -> None:
     if not os.path.exists(CONFIG_PATH):
@@ -41,6 +42,7 @@ current_bbs_url: https://www.wnflb2023.com
             logging.info("默认配置文件已创建")
         except IOError as e:
             raise e
+
 
 def get_new_url(url: str) -> str:
     logging.info("更新论坛地址")
@@ -80,7 +82,7 @@ def checkin(url: str) -> str:
         'handlekey': 'ls'
     }
     login_url = url + '/member.php?mod=logging&action=login&loginsubmit=yes&infloat=yes&lssubmit=yes&inajax=1'
-    resp = session.post(login_url, data=data, headers=HEADERS)
+    resp = session.post(login_url, data=data, headers=headers)
     if resp.status_code != 200:
         return ValueError("登录失败,请检查账号密码")
     user_info = session.get(url + '/forum.php?mobile=no').text
@@ -90,6 +92,7 @@ def checkin(url: str) -> str:
         return "签到成功！当前积分为: %s" % current_money
     else:
         raise ValueError("无法获取当前积分")
+
 
 def notify(msg: str) -> None:
     if os.getenv("FULIBA_SEND_MSG") == "true":
@@ -127,7 +130,7 @@ def run() -> None:
     try:
         log_and_notify(ifsuccess=True, result=checkin(current_bbs_url))
     except ValueError as e:
-        RESULT=f"登录失败,原因为:{e}"
+        RESULT = f"登录失败,原因为:{e}"
         logging.error(RESULT)
         if str(e) == NEED_TO_UPDATE_URL_ERROR:
             new_bbs_url = get_new_url(base_url)
@@ -139,7 +142,7 @@ def run() -> None:
                 RESULT = checkin(new_bbs_url)
                 log_and_notify(ifsuccess=True, result=RESULT)
             except ValueError as e:
-                RESULT=f"登录失败,原因为:{e}"
+                RESULT = f"登录失败,原因为:{e}"
                 log_and_notify(ifsuccess=False, result=RESULT)
         else:
             notify(RESULT)
