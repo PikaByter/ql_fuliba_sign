@@ -1,10 +1,8 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-任务名称
-name: fuliba签到
-定时规则
-cron: 2 2 * * *
+new Env('fuliba签到');
+cron: 10 1 * * *
 """
 import requests
 import re
@@ -165,6 +163,7 @@ def checkin(url: str) -> str:
         return ValueError("登录失败,返回为:%s" % login_resp)
 
     # 签到
+    # TODO: 添加今天是第几个签到的提示
     user_info = session.get(url + '/forum.php?mobile=no')
     user_info_page = etree.HTML(user_info.content)
     script = user_info_page.xpath(
@@ -176,7 +175,7 @@ def checkin(url: str) -> str:
         logging.debug(f"checkin_url: {checkin_url}")
         full_checkin_url = url + '/' + checkin_url
         session.get(full_checkin_url).text
-        result += "签到成功"
+        result += "签到成功!\n"
         logging.info("签到成功")
     else:
         raise ValueError("无法获取签到链接")
