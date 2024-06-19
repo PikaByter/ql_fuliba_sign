@@ -184,9 +184,10 @@ def checkin(url: str) -> str:
     user_info = session.get(url + '/forum.php?mobile=no').text
     current_money = re.search(
         r'<a.*? id="extcreditmenu".*?>(.*?)</a>', user_info).group(1)
+    # current_money值为 积分:xxxx
     if current_money:
-        logging.info(f"当前: {current_money}")
-        return result+f"当前: {current_money}"
+        logging.info(f"当前{current_money}")
+        return result+f"当前{current_money}"
     else:
         raise ValueError("无法获取当前积分")
 
