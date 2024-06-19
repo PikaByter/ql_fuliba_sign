@@ -3,3 +3,13 @@
 base_url: http://www.lao4g.com
 # 当前bbs地址
 current_bbs_url: https://www.wnflb2023.com
+# 日志等级
+# CRITICAL = 50
+# FATAL = CRITICAL
+# ERROR = 40
+# WARNING = 30
+# WARN = WARNING
+# INFO = 20
+# DEBUG = 10
+# NOTSET = 0
+log_level: 10

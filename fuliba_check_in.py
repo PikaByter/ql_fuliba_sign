@@ -9,10 +9,14 @@ import re
 import yaml
 import os
 import logging
+import random
 from lxml import etree
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(levelname)s - %(message)s')
+
+def init_log(log_level: str) -> None:
+    logging.basicConfig(level=log_level,
+                        format='%(asctime)s - %(levelname)s - %(message)s')
+
 
 NEED_TO_UPDATE_URL_ERROR = "访问登录页失败"
 headers = {
@@ -30,10 +34,21 @@ def check_and_prepare_config_file() -> None:
         logging.info("配置文件fuliba.yaml未找到，将尝试创建默认配置文件...")
         # 定义默认配置内容
         default_config = """
+
 # 发布页地址
 base_url: http://www.lao4g.com
 # 当前bbs地址
 current_bbs_url: https://www.wnflb2023.com
+# 日志等级
+# CRITICAL = 50
+# FATAL = CRITICAL
+# ERROR = 40
+# WARNING = 30
+# WARN = WARNING
+# INFO = 20
+# DEBUG = 10
+# NOTSET = 0
+log_level: 10
 """
         # 尝试写入默认配置内容
         try:
@@ -70,7 +85,46 @@ def get_formhash(url: str, session: requests.Session) -> str:
         raise ValueError(NEED_TO_UPDATE_URL_ERROR)
 
 
+def get_idhash(url: str, match: re.Match, session: requests.Session) -> str:
+    redirect_url = match.group(1)
+    logging.info(f"需要验证码，重定向到:{redirect_url}")
+    redirect_resp = session.get(url+'/'+redirect_url).text
+    logging.debug(f"重定向页面为:\n${redirect_resp}")
+    # 提取idhash值
+    root = etree.HTML(redirect_resp)
+    element = root.xpath('//span[starts-with(@id, "seccode_")]')
+    if element:
+        id_hash = element[0].get('id').replace('seccode_', '')
+    else:
+        raise ValueError("登录失败, 遇到验证码后->无法提取idhash")
+    logging.debug(f'\n\n----解析出idhash为{id_hash}')
+    return id_hash
+
+
+def get_captchas_url(url: str, idhash: str, session: requests.Session) -> str:
+    # 生成一个16到17位小数的随机数
+    random_number = random.uniform(0, 1)
+    formatted_number = format(random_number, '.17f')
+    # 需要formatted_number和idhash才能拼成misc_ajax参数
+    misc_url = url + \
+        f'/misc.php?mod=seccode&action=update&idhash=%{idhash}&{formatted_number}&modid=undefined'
+    # 请求ajax,获得update的值
+    misc_ajax_resp = session.get(misc_url).text
+
+    # 解析“获取验证码图片”的链接
+    logging.debug(f'----获取验证码图片的js为:\n{misc_ajax_resp}')
+    pattern = r'src="(misc[^"]+)"'
+    # 在html_content中搜索匹配项
+    captchas_url = re.findall(pattern, misc_ajax_resp)[0]
+    if not captchas_url:
+        raise ValueError("登录失败, 遇到验证码后->提取“获取验证码图片”的链接失败")
+    logging.debug(f'\n\n----获取验证码图片的链接为{captchas_url}')
+    return captchas_url
+
+
+# TODO: 使用cookie登录
 def checkin(url: str) -> str:
+    result = ""
     logging.info("自动登录")
     session = requests.session()
     formhash = get_formhash(url, session)
@@ -82,14 +136,56 @@ def checkin(url: str) -> str:
         'handlekey': 'ls'
     }
     login_url = url + '/member.php?mod=logging&action=login&loginsubmit=yes&infloat=yes&lssubmit=yes&inajax=1'
-    resp = session.post(login_url, data=data, headers=headers)
-    if resp.status_code != 200:
-        return ValueError("登录失败,请检查账号密码")
+    login_resp = session.post(login_url, data=data, headers=headers).text
+    if "errorhandle_ls" in login_resp and "请输入验证码后继续登录" in login_resp:
+        pattern = r"location\.href='(.*?)'"
+        match = re.search(pattern, login_resp)
+        if match:
+            # TODO: 写一半就不触发验证码了，下次补全
+            idhash = get_idhash(url=url, match=match, session=session)
+            captchas_url = get_captchas_url(
+                url=url, idhash=idhash, session=session)
+            logging.info("验证码图片链接为%s" % captchas_url)
+            # TODO:
+            # 1. 获取并保存图片到临时目录(或许也可以不需要，直接把字节流给ddddocr)
+            # 3. 使用ddddocr识别
+            # 3. 完成验证
+            # # import ddddocr
+            # ocr = ddddocr.DdddOcr(show_ad=False)
+            # image = open("misc.png", "rb").read()
+            # ocr.set_ranges(3)
+            # result = ocr.classification(image, probability=True)
+            # s = ""
+            # for i in result['probability']:
+            #     s += result['charsets'][i.index(max(i))]
+            # print(s)
+    if "errorhandle_ls" in login_resp:
+        return ValueError("登录失败,返回为:%s" % login_resp)
+
+    # 签到
+    user_info = session.get(url + '/forum.php?mobile=no')
+    user_info_page = etree.HTML(user_info.content)
+    script = user_info_page.xpath(
+        '/html/body/script[1]')[0].text
+    pattern = r"\'fx_checkin\', \'(plugin\.php?.*)\'"
+    match = re.search(pattern, script)
+    if match:
+        checkin_url = match.group(1)
+        logging.debug(f"checkin_url: {checkin_url}")
+        full_checkin_url = url + '/' + checkin_url
+        session.get(full_checkin_url).text
+        result += "签到成功"
+        logging.info("签到成功")
+    else:
+        raise ValueError("无法获取签到链接")
+
+    # 更新积分
     user_info = session.get(url + '/forum.php?mobile=no').text
     current_money = re.search(
         r'<a.*? id="extcreditmenu".*?>(.*?)</a>', user_info).group(1)
     if current_money:
-        return "签到成功！当前积分为: %s" % current_money
+        logging.info(f"当前积分为: ${current_money}")
+        return result+f"当前积分为: ${current_money}"
     else:
         raise ValueError("无法获取当前积分")
 
@@ -123,8 +219,10 @@ def run() -> None:
             config = yaml.safe_load(f)
             base_url = config['base_url']
             current_bbs_url = config['current_bbs_url']
+            log_level = config['log_level']
+            init_log(log_level)
             logging.info("当前bbs_url为%s" % current_bbs_url)
-    except yaml.scanner.ScannerError as e:
+    except yaml.scanner.ScannerError and KeyError as e:
         log_and_notify(ifsuccess=False, result="配置文件格式错误!请检查文件格式")
 
     try:
