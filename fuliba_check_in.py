@@ -89,7 +89,7 @@ def get_idhash(url: str, match: re.Match, session: requests.Session) -> str:
     redirect_url = match.group(1)
     logging.info(f"需要验证码，重定向到:{redirect_url}")
     redirect_resp = session.get(url+'/'+redirect_url).text
-    logging.debug(f"重定向页面为:\n${redirect_resp}")
+    logging.debug(f"重定向页面为:\n {redirect_resp}")
     # 提取idhash值
     root = etree.HTML(redirect_resp)
     element = root.xpath('//span[starts-with(@id, "seccode_")]')
@@ -184,8 +184,8 @@ def checkin(url: str) -> str:
     current_money = re.search(
         r'<a.*? id="extcreditmenu".*?>(.*?)</a>', user_info).group(1)
     if current_money:
-        logging.info(f"当前积分为: ${current_money}")
-        return result+f"当前积分为: ${current_money}"
+        logging.info(f"当前: {current_money}")
+        return result+f"当前: {current_money}"
     else:
         raise ValueError("无法获取当前积分")
 
