@@ -1,9 +1,11 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
-'''
-new Env('fuliba签到');
-0 3 * * * fuliba.py
-'''
+"""
+任务名称
+name: fuliba签到
+定时规则
+cron: 2 2 * * *
+"""
 import requests
 import re
 import yaml
